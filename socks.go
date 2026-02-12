@@ -52,6 +52,7 @@ func handleSOCKS(conn net.Conn) {
 	target, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+		fmt.Printf("Failed to connect to %s:%d - %v\n", host, port, err)
 		return
 	}
 	defer target.Close()
