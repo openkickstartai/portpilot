@@ -1,7 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,16 +28,105 @@ type Config struct {
 }
 
 func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+	log.Printf("Loading configuration from: %s", path)
+	
+	// Validate file path to prevent directory traversal
+	cleanPath := filepath.Clean(path)
+	if strings.Contains(cleanPath, "..") {
+		return nil, fmt.Errorf("invalid config path: directory traversal detected")
 	}
+	
+	// Check if file exists and is readable
+	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("config file does not exist: %s", cleanPath)
+	}
+	
+	data, err := os.ReadFile(cleanPath)
+	if err != nil {
+		log.Printf("Failed to read config file %s: %v", cleanPath, err)
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+	
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		log.Printf("Failed to parse YAML config: %v", err)
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
+	
+	// Set default values
 	if cfg.ReconnectDelay == "" {
 		cfg.ReconnectDelay = "5s"
 	}
+	
+	// Validate configuration
+	if err := validateConfig(&cfg); err != nil {
+		log.Printf("Config validation failed: %v", err)
+		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+	
+	log.Printf("Successfully loaded config with %d tunnels", len(cfg.Tunnels))
 	return &cfg, nil
+}
+
+func validateConfig(cfg *Config) error {
+	if cfg.Tunnels == nil || len(cfg.Tunnels) == 0 {
+		return fmt.Errorf("no tunnels configured")
+	}
+	
+	// Validate reconnect delay format
+	if cfg.ReconnectDelay != "" {
+		if _, err := time.ParseDuration(cfg.ReconnectDelay); err != nil {
+			return fmt.Errorf("invalid reconnect_delay format '%s': %w", cfg.ReconnectDelay, err)
+		}
+	}
+	
+	// Validate each tunnel configuration
+	usedPorts := make(map[int]string)
+	for name, tunnel := range cfg.Tunnels {
+		if err := validateTunnel(name, tunnel, usedPorts); err != nil {
+			return fmt.Errorf("tunnel '%s': %w", name, err)
+		}
+	}
+	
+	return nil
+}
+
+func validateTunnel(name string, tunnel TunnelConfig, usedPorts map[int]string) error {
+	// Validate required fields
+	if tunnel.Host == "" {
+		return fmt.Errorf("host is required")
+	}
+	if tunnel.User == "" {
+		return fmt.Errorf("user is required")
+	}
+	if tunnel.RemoteHost == "" {
+		return fmt.Errorf("remote_host is required")
+	}
+	
+	// Validate port ranges
+	if tunnel.LocalPort <= 0 || tunnel.LocalPort > 65535 {
+		return fmt.Errorf("local_port must be between 1 and 65535, got %d", tunnel.LocalPort)
+	}
+	if tunnel.RemotePort <= 0 || tunnel.RemotePort > 65535 {
+		return fmt.Errorf("remote_port must be between 1 and 65535, got %d", tunnel.RemotePort)
+	}
+	
+	// Check for port conflicts
+	if existingTunnel, exists := usedPorts[tunnel.LocalPort]; exists {
+		return fmt.Errorf("local_port %d already used by tunnel '%s'", tunnel.LocalPort, existingTunnel)
+	}
+	usedPorts[tunnel.LocalPort] = name
+	
+	// Validate SSH key file if specified
+	if tunnel.KeyFile != "" {
+		cleanKeyPath := filepath.Clean(tunnel.KeyFile)
+		if strings.Contains(cleanKeyPath, "..") {
+			return fmt.Errorf("invalid key file path: directory traversal detected")
+		}
+		if _, err := os.Stat(cleanKeyPath); os.IsNotExist(err) {
+			return fmt.Errorf("key file does not exist: %s", cleanKeyPath)
+		}
+	}
+	
+	return nil
 }
