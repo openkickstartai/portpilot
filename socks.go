@@ -39,10 +39,19 @@ func handleSOCKS(conn net.Conn) {
 	var port int
 	switch buf[3] {
 	case 0x01: // IPv4
+		if n < 10 {
+			return
+		}
 		host = fmt.Sprintf("%d.%d.%d.%d", buf[4], buf[5], buf[6], buf[7])
 		port = int(buf[8])<<8 | int(buf[9])
 	case 0x03: // Domain
+		if n < 5 {
+			return
+		}
 		l := int(buf[4])
+		if l == 0 || n < 5+l+2 {
+			return
+		}
 		host = string(buf[5:5+l])
 		port = int(buf[5+l])<<8 | int(buf[6+l])
 	default:
@@ -51,11 +60,13 @@ func handleSOCKS(conn net.Conn) {
 	// Connect to target (in production: through SSH)
 	target, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 		return
 	}
 	defer target.Close()
-	conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+	// Success response
+	conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	// Relay data
 	go io.Copy(target, conn)
 	io.Copy(conn, target)
 }
