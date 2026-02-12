@@ -5,7 +5,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type TunnelConfig struct {
+// TunnelConfig holds configuration for tunnel
+ type TunnelConfig struct {
 	Host       string `yaml:"host"`
 	User       string `yaml:"user"`
 	LocalPort  int    `yaml:"local_port"`
@@ -14,13 +15,15 @@ type TunnelConfig struct {
 	KeyFile    string `yaml:"key"`
 }
 
-type Config struct {
+// Config holds the overall configuration
+ type Config struct {
 	Tunnels        map[string]TunnelConfig `yaml:"tunnels"`
 	AutoReconnect  bool                    `yaml:"auto_reconnect"`
 	ReconnectDelay string                  `yaml:"reconnect_delay"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+// LoadConfig loads the configuration from a file
+ func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
