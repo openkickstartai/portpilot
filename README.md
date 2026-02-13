@@ -15,15 +15,23 @@ cd portpilot && go build -o portpilot .
 # Start all tunnels from config
 portpilot up
 
-# Show tunnel status
-portpilot status
-
 # Start specific tunnel
 portpilot up db-prod
 
+# Show tunnel status
+portpilot status
+
 # Stop all
 portpilot down
+
+# Use a custom config file
+portpilot -c /path/to/tunnels.yml up
+
+# Or via environment variable
+export PORTPILOT_CONFIG=/path/to/tunnels.yml
+portpilot up
 ```
+
 
 ## Config (~/.portpilot.yml)
 
