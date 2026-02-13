@@ -51,6 +51,10 @@ func main() {
 }
 
 func configPath() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: cannot determine home dir: %v\n", err)
+		return ".portpilot.yml"
+	}
 	return home + "/.portpilot.yml"
 }
